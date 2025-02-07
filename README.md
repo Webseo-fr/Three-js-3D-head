@@ -1,7 +1,5 @@
 # Three-js-3D-head
 
-Three.js 3D Head
-
 A dynamic and interactive 3D head built using Three.js, featuring animations and real-time responses.
 
 🚀 Features
@@ -10,7 +8,7 @@ Animated 3D head with smooth transitions
 
 Responsive to user input (mouse movements, clicks, etc.)
 
-Text-to-speech integration for lip-syncing
+Text-to-speech integration for lip-syncing (in progress)
 
 Optimized rendering for performance
 
@@ -20,7 +18,7 @@ Live Preview https://webseo.fr/three-js/
 
 📦 Installation
 
-git clone https://github.com/your-username/Three-js-3D-head.git
+git clone https://github.com/Webseo-fr/Three-js-3D-head.git
 cd Three-js-3D-head
 npm install
 
