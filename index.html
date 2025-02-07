@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>three.js webgl - morph targets - face</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <link type="text/css" rel="stylesheet" href="main.css">
+  <style>
+    body {
+      background-color: #000000;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    #info {
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      text-align: center;
+      z-index: 100;
+      color: white;
+    }
+    #chat-container {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 80%;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    #chat-input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+
+    #chat-button {
+      padding: 10px 20px;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    #chat-button:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="info">
+    Camera Position: <span id="cameraPosition">N/A</span>
+  </div>
+
+
+  <!-- Conteneur du champ de texte et bouton -->
+  <div id="chat-container">
+    <input type="text" id="chat-input" placeholder="Type your message..." />
+    <button id="chat-button">Send</button>
+  </div>
+
+  
+  <script type="importmap">
+    {
+        "imports": {
+          "three": "./three.module.js",
+          "three/addons/": "./jsm/"
+        }
+    }
+</script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+
+  <script type="module">
+    import * as THREE from './three.module.js';
+    import Stats from './jsm/libs/stats.module.js';
+    import { OrbitControls } from './jsm/controls/OrbitControls.js';
+    import { GLTFLoader } from './jsm/loaders/GLTFLoader.js';
+    import { KTX2Loader } from './jsm/loaders/KTX2Loader.js';
+    import { MeshoptDecoder } from './jsm/libs/meshopt_decoder.module.js';
+    import { RoomEnvironment } from './jsm/environments/RoomEnvironment.js';
+    import { GUI } from './jsm/libs/lil-gui.module.min.js';
+
+    let camera, scene, renderer, stats, mixer, clock, controls, gui, particleSystem;
+    let animationSpeed = 1;
+    let eyeLeft; // Référence à l'œil gauche
+    let eyeRight; // Référence à l'œil droit
+    let mouseX = 0, mouseY = 0; // Position de la souris
+    let isMouseMoving = false; // Détecter si la souris est en mouvement
+    let mesh; // Déclaration globale de mesh
+    let particles = [];
+    const particleCount = 1;  // Nombre de particules
+    const particleSize = 0.05;    // Taille de chaque particule
+    const particleSpeed = 0.1;    // Vitesse des particules
+    const particleTextureURL = './particle-texture.png';  // Texture des particules
+
+    let sound, source;
+    let audioContext, audioData, analyser;
+    let audioElement, bufferLength;  // Déclarer audioElement au niveau global
+
+    let isPlaying = false; // Drapeau pour vérifier si le fichier audio est déjà en lecture
+
+    init();
+
+    function initAudio() {
+      if (isPlaying) {
+    console.log("L'audio est déjà en cours de lecture.");
+    return;
+  }
+
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 512;
+      bufferLength = analyser.frequencyBinCount;
+      audioData = new Uint8Array(bufferLength);
+
+      // Charger le fichier audio en utilisant fetch et le convertir en ArrayBuffer
+      fetch('welcome.mp3')
+        .then(response => response.arrayBuffer())
+        .then(data => {
+          // Décodez le ArrayBuffer en AudioBuffer
+          audioContext.decodeAudioData(data, (buffer) => {
+            // Créer un AudioBufferSourceNode à partir du buffer audio
+            source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(analyser);
+            analyser.connect(audioContext.destination);
+            source.start(0); // Démarrer la lecture
+
+isPlaying = true; // Indiquer que la lecture est en cours
+
+        // Réinitialiser le drapeau lorsque la lecture se termine
+        source.onended = () => {
+          //isPlaying = false;
+          console.log("Lecture terminée.");
+        };
+            // Lancer l'animation pour la mise à jour des données audio
+            requestAnimationFrame(update);
+          }, (error) => {
+            console.error("Erreur lors du décodage de l'audio : ", error);
+          });
+          update();
+        })
+        .catch(error => {
+          console.error("Erreur lors du chargement du fichier audio : ", error);
+        });
+    }
+    // Fonction d'analyse audio
+    function update() {
+      analyser.getByteFrequencyData(audioData);
+      // Traitez les données audio ici (par exemple visualisation, etc.)
+      console.log(audioData);
+      requestAnimationFrame(update); // Assurez-vous que l'appel récursif est dans la fonction
+    }
+    // Fonction pour analyser les données audio en continu
+    // Fonction d'animation pour analyser les données audio
+
+
+
+    // Optionnel: Vérifier l'état de lecture avant de faire des calculs audio
+    function getAudioVolume() {
+      const audioElement = sound._sounds[0]._node;
+      if (audioElement && !audioElement.paused) {
+        analyser.getByteFrequencyData(audioData);
+        console.log(audioData);
+      } else {
+        console.log('L\'audio est en pause ou non chargé');
+      }
+    }
+
+    function init() {
+      clock = new THREE.Clock();
+
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+
+      // Camera
+      camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 20);
+      camera.position.set(0.16, 0.63, 6.49);
+      // Scene
+      scene = new THREE.Scene();
+
+      // Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setAnimationLoop(animate);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      container.appendChild(renderer.domElement);
+
+      // Environment
+      const ktx2Loader = new KTX2Loader()
+        .setTranscoderPath('jsm/libs/basis/')
+        .detectSupport(renderer);
+
+      const environment = new RoomEnvironment();
+      const pmremGenerator = new THREE.PMREMGenerator(renderer);
+
+      scene.background = new THREE.Color(0x000000);
+      scene.environment = pmremGenerator.fromScene(environment).texture;
+
+      // Créer le matériau pour les particules
+      const particleTexture = new THREE.TextureLoader().load(particleTextureURL);  // Charger la texture des particules
+      const particleMaterial = new THREE.PointsMaterial({
+        size: particleSize, // Taille des particules
+        map: particleTexture,  // Texture de chaque particule
+        transparent: true,
+        opacity: 0.7,   // Opacité des particules
+        depthWrite: false // Désactive l'écriture dans le buffer de profondeur pour que les particules ne cachent pas d'autres objets
+      });
+
+      // Créer un tableau de particules
+      const geometry = new THREE.BufferGeometry();
+      const positions = [];
+      const velocities = [];
+
+      // Générer des positions et vitesses aléatoires pour les particules
+      for (let i = 0; i < particleCount; i++) {
+        positions.push(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5);
+        velocities.push(Math.random() * 0.01 - 0.005, Math.random() * 0.01 - 0.005, Math.random() * 0.01 - 0.005);
+      }
+
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('velocity', new THREE.Float32BufferAttribute(velocities, 3));
+
+      // Créer l'objet de particules
+      particleSystem = new THREE.Points(geometry, particleMaterial);
+      scene.add(particleSystem);
+
+      // Ajouter l'éclairage de la scène
+      const ambientLight = new THREE.AmbientLight(0x888888);  // Lumière ambiante
+      scene.add(ambientLight);
+
+
+      // Load Model
+      new GLTFLoader()
+        .setKTX2Loader(ktx2Loader)
+        .setMeshoptDecoder(MeshoptDecoder)
+        .load('models/gltf/facecap.glb', (gltf) => {
+          mesh = gltf.scene.children[0]; // Affecter mesh globalement
+          scene.add(mesh);
+
+          // Traverse the model and log all object names
+          mesh.traverse((child) => {
+            console.log(child.name); // Log each object in the model
+            child.visible = true; // Ensure all elements are visible
+          });
+
+          // Animation Mixer
+          mixer = new THREE.AnimationMixer(mesh);
+          const action = mixer.clipAction(gltf.animations[0]);
+          action.play();
+
+          // Get reference to the left eye
+          eyeLeft = mesh.getObjectByName('eyeLeft');
+          if (!eyeLeft) {
+            console.error('Eye Left not found in model.');
+          }
+
+          // Get reference to the right eye
+          eyeRight = mesh.getObjectByName('eyeRight');
+          if (!eyeRight) {
+            console.error('Eye Right not found in model.');
+          }
+
+          // Morph Targets GUI
+          const head = mesh.getObjectByName('mesh_2');
+          if (head && head.morphTargetDictionary) {
+            const influences = head.morphTargetInfluences;
+
+            gui = new GUI();
+            gui.close();
+
+            for (const [key, value] of Object.entries(head.morphTargetDictionary)) {
+              if (key.includes('jawOpen')) {  // Vérifie si la morph target concerne la bouche
+                gui.add(influences, value, 0, 0.5, 0.01)  // Limite l'ouverture à 0.5
+                  .name(key.replace('blendShape1.', ''))
+                  .listen();
+              } else {
+                gui.add(influences, value, 0, 1, 0.01)
+                  .name(key.replace('blendShape1.', ''))
+                  .listen();
+              }
+            }
+
+            // Animation Speed Control
+            gui.add({ animationSpeed }, 'animationSpeed', 0, 2, 0.01)
+              .name('Animation Speed')
+              .onChange((value) => {
+                animationSpeed = value;
+              });
+          } else {
+            console.error('No morphTargetDictionary found in the model.');
+          }
+        }, undefined, (error) => {
+          console.error('Error loading model:', error);
+        });
+
+      // OrbitControls
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.minDistance = 2.5;
+      controls.maxDistance = 5;
+      controls.minAzimuthAngle = -Math.PI / 2;
+      controls.maxAzimuthAngle = Math.PI / 2;
+      controls.maxPolarAngle = Math.PI / 1.8;
+      controls.target.set(0, 0.15, -0.2);
+
+      // Stats
+      stats = new Stats();
+      container.appendChild(stats.dom);
+
+      window.addEventListener('resize', onWindowResize);
+      animateP();
+
+      // Listen for mouse move events
+      document.addEventListener('mousemove', onMouseMove, false);
+      document.addEventListener('click', onMouseClick, false);
+
+
+    }
+    function onMouseClick(event) {
+
+      //initAudio();
+    
+    }
+
+    function onMouseMove(event) {
+      // Update mouse position
+      mouseX = (event.clientX / window.innerWidth) * 2 - 1;
+      mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      // Activate the animation only when the mouse moves
+      isMouseMoving = true;
+
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    function animateP() {
+      requestAnimationFrame(animateP);
+
+      // Mettre à jour les positions des particules en fonction de leur vitesse
+      const positions = particleSystem.geometry.attributes.position.array;
+      const velocities = particleSystem.geometry.attributes.velocity.array;
+
+      for (let i = 0; i < particleCount; i++) {
+        positions[i * 3] += velocities[i * 3];
+        positions[i * 3 + 1] += velocities[i * 3 + 1];
+        positions[i * 3 + 2] += velocities[i * 3 + 2];
+
+        // Réinitialiser la position de la particule si elle sort du cadre
+        if (positions[i * 3] > 5 || positions[i * 3] < -5) velocities[i * 3] = -velocities[i * 3];
+        if (positions[i * 3 + 1] > 5 || positions[i * 3 + 1] < -5) velocities[i * 3 + 1] = -velocities[i * 3 + 1];
+        if (positions[i * 3 + 2] > 5 || positions[i * 3 + 2] < -5) velocities[i * 3 + 2] = -velocities[i * 3 + 2];
+      }
+
+      // Marquer que l'attribut position a été mis à jour
+      particleSystem.geometry.attributes.position.needsUpdate = true;
+
+      // Animer la scène
+      renderer.render(scene, camera);
+
+
+
+
+
+    }
+    function animate() {
+      const delta = clock.getDelta();
+
+      if (isMouseMoving && mesh) {
+        // Mise à jour des animations
+        if (mixer) {
+          mixer.update(delta * animationSpeed);
+        }
+
+        const morphInfluences = mesh.getObjectByName('mesh_2').morphTargetInfluences;
+        const morphDictionary = mesh.getObjectByName('mesh_2').morphTargetDictionary;
+
+        const maxEffect = 0.2; // Limite maximale d'influence
+
+        // Liste des noms de morph targets à limiter
+        const morphTargetsToLimit = [
+          'mouthLeft',
+          'mouthRight',
+          'mouthPucker',
+          'mouthStretch_L',
+          'mouthStretch_R',
+          'mouthUpperUp_L',
+          'mouthUpperUp_R',
+          'mouthLowerDown_L',
+          'mouthLowerDown_R',
+          'mouthFrown_L',
+          'mouthFrown_R',
+           'mouthSmile_L',
+          'mouthSmile_R',
+          'mouthShrugUpper'
+
+        ];
+
+        // Limiter les influences des morph targets spécifiées
+        morphTargetsToLimit.forEach(targetName => {
+          if (targetName in morphDictionary) {
+            const targetIndex = morphDictionary[targetName];
+            morphInfluences[targetIndex] = Math.min(morphInfluences[targetIndex], maxEffect);
+          }
+        });
+
+        // **Faire sourire**
+        const smileEffect = 0.2; // Intensité du sourire
+        if (morphDictionary['mouthSmile']) {
+          const smileIndex = morphDictionary['mouthSmile'];
+          morphInfluences[smileIndex] = Math.min(morphInfluences[smileIndex] + smileEffect, 1); // Applique un sourire
+        }
+
+
+        // **Mouvements des yeux**
+        const eyeRotationSpeed = 0.3; // Sensibilité ajustée pour plus de fluidité
+        const eyeBounce = 0.002; // Ajout d'une oscillation amusante
+
+        if (eyeLeft) {
+          eyeLeft.rotation.x = THREE.MathUtils.lerp(eyeLeft.rotation.x, -mouseY * eyeRotationSpeed, 0.1) + Math.sin(Date.now() * 0.005) * eyeBounce;
+          eyeLeft.rotation.y = THREE.MathUtils.lerp(eyeLeft.rotation.y, mouseX * eyeRotationSpeed, 0.1) + Math.cos(Date.now() * 0.005) * eyeBounce;
+        }
+
+        if (eyeRight) {
+          eyeRight.rotation.x = THREE.MathUtils.lerp(eyeRight.rotation.x, -mouseY * eyeRotationSpeed, 0.1) + Math.sin(Date.now() * 0.005) * eyeBounce;
+          eyeRight.rotation.y = THREE.MathUtils.lerp(eyeRight.rotation.y, mouseX * eyeRotationSpeed, 0.1) + Math.cos(Date.now() * 0.005) * eyeBounce;
+        }
+
+        let volume = 0;
+        // Calculer le volume (en prenant la moyenne des valeurs de fréquence)
+        if (audioData && audioData.length > 0) {
+          volume = audioData.reduce((acc, value) => acc + value, 0) / audioData.length;
+          // Utilisez la valeur de volume pour l'animation des lèvres
+        }
+        const normalizedVolume = (volume / 256)*2;  // Normalisez le volume entre 0 et 1
+        console.log(normalizedVolume);
+
+        // Mapper le volume à l'ouverture de la bouche (jawOpen)
+        const maxMouthOpen = 1; // Max effect d'ouverture de la bouche
+        if (morphDictionary['jawOpen']) {
+          const jawIndex = morphDictionary['jawOpen'];
+          morphInfluences[jawIndex] = Math.min(normalizedVolume * maxMouthOpen, 1.0);  // Applique l'ouverture de la bouche
+        }
+
+
+
+
+        // **Expressions faciales (mâchoire et bouche)**
+        const jawEffect = 0.2;
+        if (mesh) {
+          const jaw = mesh.getObjectByName('mesh_2').morphTargetInfluences;
+          const dict = mesh.getObjectByName('mesh_2').morphTargetDictionary;
+
+          // Mouvements de la mâchoire
+          //jaw[dict['jawOpen']] = Math.min(volume * maxMouthOpen, 1.0);
+
+          // Mouvement drôle des lèvres (funnel)
+          jaw[dict['mouthFunnel']] = Math.min(jaw[dict['mouthFunnel']] + Math.abs(Math.cos(Date.now() * 0.002) * 0.02), jawEffect);
+          jaw[dict['mouthClose']] = Math.min(jaw[dict['mouthClose']] + Math.abs(Math.cos(Date.now() * 0.002) * 0.02), jawEffect);
+        }
+
+        // **Mouvements de la caméra**
+        const cameraSpeed = 0.01; // Sensibilité ajustée pour plus de fluidité
+        let targetPosition = new THREE.Vector3();
+
+        // Définition des positions de la caméra en fonction de la souris
+        if (mouseX < -0.5 && mouseY < -0.5) { // Bas-gauche
+          targetPosition.set(2, 1.10, 4.80);
+        } else if (mouseX < -0.5 && mouseY > 0.5) { // Haut-gauche
+          targetPosition.set(2, -0.70, 4.80);
+        } else if (mouseX > 0.5 && mouseY > 0.5) { // Haut-droit
+          targetPosition.set(-1.51, -0.50, 5);
+        } else if (mouseX > 0.5 && mouseY < -0.5) { // Bas-droit
+          targetPosition.set(-0.51, 1.10, 5);
+        } else { // Centre
+          targetPosition.set(0.0, -0.40, 5);
+        }
+
+        // Interpolation douce de la caméra
+        camera.position.lerp(targetPosition, cameraSpeed);
+
+        // **Rotation de la tête**
+        const headRotationSpeed = 0.05; // Sensibilité ajustée
+        const headBounce = 0.001; // Oscillation humoristique
+
+        if (mouseX < -0.4) {
+          // Tête vers la gauche
+          mesh.rotation.y = THREE.MathUtils.lerp(mesh.rotation.y, -0.5, headRotationSpeed);
+        } else if (mouseX > 0.4) {
+          // Tête vers la droite
+          mesh.rotation.y = THREE.MathUtils.lerp(mesh.rotation.y, 0.5, headRotationSpeed);
+        } else {
+          // Tête au centre avec oscillation
+          mesh.rotation.y = THREE.MathUtils.lerp(mesh.rotation.y, 0, headRotationSpeed) + Math.sin(Date.now() * 0.003) * headBounce;
+        }
+
+        isMouseMoving = true;
+      }
+
+      // Rendu de la scène
+      renderer.render(scene, camera);
+      controls.update();
+      stats.update();
+
+      // Affichage des coordonnées de la caméra
+      document.getElementById('cameraPosition').innerText = `X: ${camera.position.x.toFixed(2)} Y: ${camera.position.y.toFixed(2)} Z: ${camera.position.z.toFixed(2)}`;
+    }
+  </script>
+</body>
+
+</html>
