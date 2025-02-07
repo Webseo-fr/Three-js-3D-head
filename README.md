@@ -16,6 +16,10 @@ Optimized rendering for performance
 
 Live Preview https://webseo.fr/three-js/
 
+## 🖼 Preview
+![3D Head Preview](./3D-three-js.png)
+
+
 📦 Installation
 
 git clone https://github.com/Webseo-fr/Three-js-3D-head.git
